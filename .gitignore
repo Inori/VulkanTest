@@ -84,6 +84,3 @@ ipch/
 # GLFW
 glfw.dir/
 
-
-# 3rdParty built libs
-*.lib
