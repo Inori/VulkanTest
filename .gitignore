@@ -1,5 +1,7 @@
 ## Ignore Visual Studio temporary files, build results
 
+# Vulkan compiled shaders
+*.spv
 
 # User-specific files
 *.rsuser
