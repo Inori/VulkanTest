@@ -127,8 +127,14 @@
     <ClCompile Include="VulkanTest.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="26_shader_depth.frag" />
-    <None Include="26_shader_depth.vert" />
+    <None Include="26_shader_depth.frag">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">glslangValidator.exe -V</Command>
+    </None>
+    <None Include="26_shader_depth.vert">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">glslangValidator.exe -V</Command>
+    </None>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
