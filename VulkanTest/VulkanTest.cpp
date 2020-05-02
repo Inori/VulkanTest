@@ -74,9 +74,9 @@ struct SwapChainSupportDetails {
 };
 
 struct Vertex {
-	glm::vec3 pos;
-	glm::vec3 color;
-	glm::vec2 texCoord;
+	alignas(16) glm::vec3 pos;
+	alignas(16) glm::vec3 color;
+	alignas(16) glm::vec2 texCoord;
 
 	static VkVertexInputBindingDescription getBindingDescription() {
 		VkVertexInputBindingDescription bindingDescription = {};
@@ -1313,10 +1313,19 @@ private:
 
 			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeDescriptorSet, 0, nullptr);
 
-			vkCmdDispatch(commandBuffers[i], 8, 8, 1);
+			vkCmdDispatch(commandBuffers[i], 8, 1, 1);
 
 			vkCmdSetEvent(commandBuffers[i], computeSyncEvents[i], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 			// graphics
+
+			VkMemoryBarrier barrier = {};
+			barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+			barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+			barrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+
+			vkCmdWaitEvents(commandBuffers[i], 1, &computeSyncEvents[i],
+				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+				VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 1, &barrier, 0, nullptr, 0, nullptr);
 
 			VkRenderPassBeginInfo renderPassInfo = {};
 			renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -1344,14 +1353,6 @@ private:
 
 			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
 
-			VkMemoryBarrier barrier = {};
-			barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-			barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-			vkCmdWaitEvents(commandBuffers[i], 1, &computeSyncEvents[i], 
-				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-				VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 1, &barrier, 0, nullptr, 0, nullptr);
 
 			vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
