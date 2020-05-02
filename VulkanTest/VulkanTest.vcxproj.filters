@@ -23,11 +23,14 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="26_shader_depth.frag">
+    <CustomBuild Include="26_shader_depth.comp">
       <Filter>Shaders</Filter>
-    </None>
-    <None Include="26_shader_depth.vert">
+    </CustomBuild>
+    <CustomBuild Include="26_shader_depth.frag">
       <Filter>Shaders</Filter>
-    </None>
+    </CustomBuild>
+    <CustomBuild Include="26_shader_depth.vert">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

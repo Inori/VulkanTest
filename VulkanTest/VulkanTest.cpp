@@ -197,6 +197,14 @@ private:
 
 	bool framebufferResized = false;
 
+	// For compute job
+	VkDescriptorSetLayout computeDescSetLayout;
+	VkDescriptorSet computeDescriptorSet;
+	VkPipelineLayout computePipelineLayout;
+	VkPipeline computePipeline;
+
+	std::vector<VkEvent> computeSyncEvents;
+
 	void initWindow() {
 		glfwInit();
 
@@ -223,6 +231,7 @@ private:
 		createRenderPass();
 		createDescriptorSetLayout();
 		createGraphicsPipeline();
+		createComputePipeline();
 		createCommandPool();
 		createDepthResources();
 		createFramebuffers();
@@ -234,8 +243,8 @@ private:
 		createUniformBuffers();
 		createDescriptorPool();
 		createDescriptorSets();
-		createCommandBuffers();
 		createSyncObjects();
+		createCommandBuffers();
 	}
 
 	void mainLoop() {
@@ -591,6 +600,7 @@ private:
 	}
 
 	void createDescriptorSetLayout() {
+		// graphics
 		VkDescriptorSetLayoutBinding uboLayoutBinding = {};
 		uboLayoutBinding.binding = 0;
 		uboLayoutBinding.descriptorCount = 1;
@@ -612,6 +622,24 @@ private:
 		layoutInfo.pBindings = bindings.data();
 
 		if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create descriptor set layout!");
+		}
+
+		// compute
+
+		VkDescriptorSetLayoutBinding ssboLayoutBinding = {};
+		ssboLayoutBinding.binding = 0;
+		ssboLayoutBinding.descriptorCount = 1;
+		ssboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		ssboLayoutBinding.pImmutableSamplers = nullptr;
+		ssboLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+		VkDescriptorSetLayoutCreateInfo computelayoutInfo = {};
+		computelayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		computelayoutInfo.bindingCount = 1;
+		computelayoutInfo.pBindings = &ssboLayoutBinding;
+
+		if (vkCreateDescriptorSetLayout(device, &computelayoutInfo, nullptr, &computeDescSetLayout) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create descriptor set layout!");
 		}
 	}
@@ -741,6 +769,39 @@ private:
 
 		vkDestroyShaderModule(device, fragShaderModule, nullptr);
 		vkDestroyShaderModule(device, vertShaderModule, nullptr);
+	}
+
+	void createComputePipeline() {
+		auto compShaderCode = readFile("comp.spv");
+
+		VkShaderModule compShaderModule = createShaderModule(compShaderCode);
+
+		VkPipelineShaderStageCreateInfo compShaderStageInfo = {};
+		compShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		compShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+		compShaderStageInfo.module = compShaderModule;
+		compShaderStageInfo.pName = "main";
+
+		VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		pipelineLayoutInfo.setLayoutCount = 1;
+		pipelineLayoutInfo.pSetLayouts = &computeDescSetLayout;
+
+		if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &computePipelineLayout) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create pipeline layout!");
+		}
+
+		VkComputePipelineCreateInfo computePipelineCreateInfo = {};
+		computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+		computePipelineCreateInfo.layout = computePipelineLayout;
+		computePipelineCreateInfo.stage = compShaderStageInfo;
+		computePipelineCreateInfo.flags = 0;
+
+		if (vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &computePipeline) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create compute pipeline!");
+		}
+
+		vkDestroyShaderModule(device, compShaderModule, nullptr);
 	}
 
 	void createFramebuffers() {
@@ -1011,7 +1072,7 @@ private:
 		memcpy(data, vertices.data(), (size_t)bufferSize);
 		vkUnmapMemory(device, stagingBufferMemory);
 
-		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
+		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
 
 		copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
 
@@ -1051,17 +1112,19 @@ private:
 	}
 
 	void createDescriptorPool() {
-		std::array<VkDescriptorPoolSize, 2> poolSizes = {};
+		std::array<VkDescriptorPoolSize, 3> poolSizes = {};
 		poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
 		poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+		poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		poolSizes[2].descriptorCount = 1;
 
 		VkDescriptorPoolCreateInfo poolInfo = {};
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 		poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
 		poolInfo.pPoolSizes = poolSizes.data();
-		poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size());
+		poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size()) + 1;
 
 		if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create descriptor pool!");
@@ -1069,6 +1132,7 @@ private:
 	}
 
 	void createDescriptorSets() {
+		// Graphics
 		std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayout);
 		VkDescriptorSetAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -1112,6 +1176,31 @@ private:
 
 			vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 		}
+
+		// Compute
+		allocInfo.descriptorSetCount = 1;
+		allocInfo.pSetLayouts = &computeDescSetLayout;
+
+		if (vkAllocateDescriptorSets(device, &allocInfo, &computeDescriptorSet) != VK_SUCCESS) {
+			throw std::runtime_error("failed to allocate descriptor sets!");
+		}
+
+		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+		VkDescriptorBufferInfo ssboInfo = {};
+		ssboInfo.buffer = vertexBuffer;
+		ssboInfo.offset = 0;
+		ssboInfo.range = bufferSize;
+
+		VkWriteDescriptorSet computeWrite = {};
+		computeWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		computeWrite.dstSet = computeDescriptorSet;
+		computeWrite.dstBinding = 0;
+		computeWrite.dstArrayElement = 0;
+		computeWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		computeWrite.descriptorCount = 1;
+		computeWrite.pBufferInfo = &ssboInfo;
+
+		vkUpdateDescriptorSets(device, 1, &computeWrite, 0, nullptr);
 	}
 
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
@@ -1217,6 +1306,18 @@ private:
 				throw std::runtime_error("failed to begin recording command buffer!");
 			}
 
+			// compute
+			vkCmdResetEvent(commandBuffers[i], computeSyncEvents[i], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+
+			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
+
+			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeDescriptorSet, 0, nullptr);
+
+			vkCmdDispatch(commandBuffers[i], 8, 8, 1);
+
+			vkCmdSetEvent(commandBuffers[i], computeSyncEvents[i], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+			// graphics
+
 			VkRenderPassBeginInfo renderPassInfo = {};
 			renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 			renderPassInfo.renderPass = renderPass;
@@ -1243,6 +1344,15 @@ private:
 
 			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
 
+			VkMemoryBarrier barrier = {};
+			barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+			barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+			vkCmdWaitEvents(commandBuffers[i], 1, &computeSyncEvents[i], 
+				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+				VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 1, &barrier, 0, nullptr, 0, nullptr);
+
 			vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
 			vkCmdEndRenderPass(commandBuffers[i]);
@@ -1258,6 +1368,8 @@ private:
 		renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
 		inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
 
+		computeSyncEvents.resize(swapChainFramebuffers.size());
+
 		VkSemaphoreCreateInfo semaphoreInfo = {};
 		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
@@ -1265,10 +1377,23 @@ private:
 		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
+		VkEventCreateInfo eventInfo = {};
+		eventInfo.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
+		eventInfo.pNext = nullptr;
+		eventInfo.flags = 0;
+
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 			if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
 				vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
-				vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
+				vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS ) {
+				throw std::runtime_error("failed to create synchronization objects for a frame!");
+			}
+		}
+
+		for (size_t i = 0; i < swapChainFramebuffers.size(); ++i)
+		{
+			if (vkCreateEvent(device, &eventInfo, nullptr, &computeSyncEvents[i]) != VK_SUCCESS)
+			{
 				throw std::runtime_error("failed to create synchronization objects for a frame!");
 			}
 		}
@@ -1447,7 +1572,15 @@ private:
 		VkPhysicalDeviceFeatures supportedFeatures;
 		vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
 
-		return indices.isComplete() && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
+		VkPhysicalDeviceProperties props = {};
+		vkGetPhysicalDeviceProperties(device, &props);
+
+
+		return indices.isComplete() && 
+			extensionsSupported && 
+			swapChainAdequate && 
+			supportedFeatures.samplerAnisotropy &&
+			props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
 	}
 
 	bool checkDeviceExtensionSupport(VkPhysicalDevice device) {

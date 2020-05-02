@@ -1,0 +1,22 @@
+#version 450
+
+struct Vertex
+{
+	vec3 pos;
+	vec3 color;
+	vec2 texCoord;
+};
+
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(binding = 0) buffer SSBO
+{
+   Vertex vertexBuffer[];
+};
+
+void main()
+{	
+	uint idx = gl_WorkGroupID.x + gl_WorkGroupID.y;
+	vertexBuffer[idx].color.x = vertexBuffer[idx].color.x;
+}
