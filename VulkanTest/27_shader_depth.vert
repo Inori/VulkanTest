@@ -1,4 +1,5 @@
 #version 450
+#extension GL_EXT_debug_printf : enable
 
 layout(binding = 0) uniform UniformBufferObject {
     mat4 model;
@@ -17,4 +18,5 @@ void main() {
     gl_Position = ubo.proj * ubo.view * ubo.model * vec4(inPosition, 1.0);
     fragColor = inColor;
     fragTexCoord = inTexCoord;
+    debugPrintfEXT("gl_Position %f %f %f\n", gl_Position.x, gl_Position.y, gl_Position.z);
 }
