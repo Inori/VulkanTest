@@ -22,15 +22,4 @@
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="26_shader_depth.comp">
-      <Filter>Shaders</Filter>
-    </CustomBuild>
-    <CustomBuild Include="26_shader_depth.frag">
-      <Filter>Shaders</Filter>
-    </CustomBuild>
-    <CustomBuild Include="26_shader_depth.vert">
-      <Filter>Shaders</Filter>
-    </CustomBuild>
-  </ItemGroup>
 </Project>
